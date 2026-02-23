@@ -50,18 +50,21 @@ task:
     # We pass a heredoc script into the DuckDB CLI
     - |
       DB_NAME=$(basename $PWD)
-      duckdb ../extracted_data/$DUCKDB_FILENAME <<EOF
-      INSTALL mysql;
-      LOAD mysql;
       
-      -- Attach the local Dolt server as a MySQL database
-      ATTACH 'host=127.0.0.1 port=3306 user=root database=$DB_NAME' AS dolt_db (TYPE MYSQL);
+      # Query the DuckDB file for all table names and output them as a list
+      TABLES=$(duckdb ../extracted_data/$DUCKDB_FILENAME -noheader -list -c "SELECT table_name FROM information_schema.tables WHERE table_schema='main';")
       
-      -- Copy the table from DuckDB to Dolt. 
-      -- Change 'projects' to match the specific tables in your DuckDB file if necessary.
-      CREATE TABLE dolt_db.projects AS SELECT * FROM projects;
+      # Loop through every table found and copy it to Dolt
+      for TABLE in $TABLES; do
+        echo "Importing table: $TABLE"
+        duckdb ../extracted_data/$DUCKDB_FILENAME <<EOF
+        INSTALL mysql;
+        LOAD mysql;
+        ATTACH 'host=127.0.0.1 port=3306 user=root database=$DB_NAME' AS dolt_db (TYPE MYSQL);
+        CREATE TABLE dolt_db."$TABLE" AS SELECT * FROM "$TABLE";
       EOF
-
+      done
+      
     # 5. Stop the Dolt SQL server
     - kill $DOLT_PID
 
