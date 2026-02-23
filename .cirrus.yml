@@ -1,37 +1,35 @@
 env:
   # You must encrypt your DoltHub token using the Cirrus CI web interface
   # https://cirrus-ci.org/guide/writing-tasks/#encrypted-variables
-  DOLTHUB_TOKEN: ENCRYPTED[f54e9df42ab5dd76b364016cdb1db0eb280fda231dc3591e3a5da3330fb5a04bfa3b318cd84ddbcb6f0575e12291cd1d]
-  SQLITE_ZIP_URL: "https://www.kaggle.com/api/v1/datasets/download/jessysisca/cve-exploits-metadata"
-  DOLT_REPO_NAME: "sahil/cves"
-  SQLITE_FILENAME: "cvedb.sqlite"
+  DOLTHUB_TOKEN: ENCRYPTED[your_encrypted_token_here]
+  DUCKDB_ZIP_URL: "https://example.com/path/to/your/database.zip"
+  DOLT_REPO_NAME: "your_username/your_repo_name"
+  DUCKDB_FILENAME: "database.duckdb" # Name of the file after unzipping
 
 task:
   name: Update DoltHub Database
-  # Using a Python base image since sqlite3-to-mysql is a Python package
   container:
-    image: python:latest
-    use_in_memory_disk: true
-    cpu: 8
-    memory: 32G
+    image: ubuntu:latest
 
   install_dependencies_script:
-    - apt-get update && apt-get install -y unzip sudo curl
-    # Install Dolt using the official installation script
+    - apt-get update && apt-get install -y unzip wget curl sudo
+    
+    # Install Dolt
     - curl -L https://github.com/dolthub/dolt/releases/latest/download/install.sh | sudo bash
-    # Install the SQLite to MySQL conversion tool
-    - pip install sqlite3-to-mysql
+    
+    # Install DuckDB CLI (v1.1.3 based on your .tool-versions)
+    - wget https://github.com/duckdb/duckdb/releases/download/v1.1.3/duckdb_cli-linux-amd64.zip
+    - unzip duckdb_cli-linux-amd64.zip -d /usr/local/bin/
+    - rm duckdb_cli-linux-amd64.zip
 
   download_and_extract_script:
-    - wget -O data.zip $SQLITE_ZIP_URL
+    - wget -O data.zip $DUCKDB_ZIP_URL
     - unzip data.zip -d extracted_data/
-    - rm data.zip
 
   dolt_upload_script:
     # 1. Configure Dolt
     - dolt config --global --set user.email "ci-bot@example.com"
     - dolt config --global --set user.name "Cirrus CI Bot"
-    # Authenticate with DoltHub using the provided token 
     - echo "$DOLTHUB_TOKEN" | dolt creds import
 
     # 2. Initialize Dolt Repository
@@ -40,28 +38,32 @@ task:
     - dolt init
     - dolt remote add origin $DOLT_REPO_NAME
 
-    # 3. Start Dolt SQL Server in the background 
-    - dolt sql-server --host 0.0.0.0 --port 3306 &
+    # 3. Start Dolt SQL Server in the background
+    # Using 127.0.0.1 specifically so DuckDB's MySQL extension routes via TCP properly
+    - dolt sql-server --host 127.0.0.1 --port 3306 &
     - DOLT_PID=$!
-    # Wait briefly to ensure the server starts properly
-    - sleep 5
+    - sleep 5 # Wait briefly to ensure server starts
 
-    # 4. Import SQLite data into the Dolt server
-    # This mirrors the Justfile behavior of piping the unzipped sqlite file via localhost
+    # 4. Import DuckDB data into Dolt using the MySQL extension
+    # We pass a heredoc script into the DuckDB CLI
     - |
-      sqlite3mysql --sqlite-file ../extracted_data/$SQLITE_FILENAME \
-          --mysql-database $(basename $PWD) \
-          --mysql-user root \
-          --mysql-password "" \
-          --mysql-host localhost \
-          --mysql-port 3306
+      DB_NAME=$(basename $PWD)
+      duckdb ../extracted_data/$DUCKDB_FILENAME <<EOF
+      INSTALL mysql;
+      LOAD mysql;
+      
+      -- Attach the local Dolt server as a MySQL database
+      ATTACH 'host=127.0.0.1 port=3306 user=root database=$DB_NAME' AS dolt_db (TYPE MYSQL);
+      
+      -- Copy the table from DuckDB to Dolt. 
+      -- Change 'projects' to match the specific tables in your DuckDB file if necessary.
+      CREATE TABLE dolt_db.projects AS SELECT * FROM projects;
+      EOF
 
     # 5. Stop the Dolt SQL server
     - kill $DOLT_PID
-    - sleep 5
 
     # 6. Commit and Push to DoltHub
     - dolt add .
-    - dolt commit -m "Automated SQLite data import via Cirrus CI"
-    # Pushes to the main branch; force is used in the original repo to overwrite
+    - dolt commit -m "Automated DuckDB data import via Cirrus CI"
     - dolt push --force origin main
