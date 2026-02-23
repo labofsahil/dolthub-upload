@@ -1,7 +1,7 @@
 env:
   # You must encrypt your DoltHub token using the Cirrus CI web interface
   # https://cirrus-ci.org/guide/writing-tasks/#encrypted-variables
-  DOLTHUB_TOKEN: ENCRYPTED[02a70012200a5525c354358869922748ab5b72ec75d603d90c51d8df74a9c0a4a7c3c6ac117131ab6583cb403a7d49cb]
+  DOLTHUB_TOKEN: ENCRYPTED[f54e9df42ab5dd76b364016cdb1db0eb280fda231dc3591e3a5da3330fb5a04bfa3b318cd84ddbcb6f0575e12291cd1d]
   SQLITE_ZIP_URL: "https://www.kaggle.com/api/v1/datasets/download/justsahil/sqlite"
   DOLT_REPO_NAME: "sahil/arXiv-metadata"
   SQLITE_FILENAME: "arxiv_data.db"
