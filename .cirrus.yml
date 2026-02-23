@@ -10,6 +10,8 @@ task:
   name: Update DoltHub Database
   container:
     image: ubuntu:latest
+    cpu: 8
+    memory: 32G
 
   install_dependencies_script:
     - apt-get update && apt-get install -y unzip wget curl sudo
