@@ -1,10 +1,10 @@
 env:
   # You must encrypt your DoltHub token using the Cirrus CI web interface
   # https://cirrus-ci.org/guide/writing-tasks/#encrypted-variables
-  DOLTHUB_TOKEN: ENCRYPTED[!c3eec322c37ed4f2df8b8549121e0007afae6cd3d884c2c390e294de2a732ccf02a8bd0eacebd68fd19cdc9663ec6ed2!]
+  DOLTHUB_TOKEN: ENCRYPTED[02a70012200a5525c354358869922748ab5b72ec75d603d90c51d8df74a9c0a4a7c3c6ac117131ab6583cb403a7d49cb]
   SQLITE_ZIP_URL: "https://www.kaggle.com/api/v1/datasets/download/justsahil/sqlite"
   DOLT_REPO_NAME: "sahil/arXiv-metadata"
-  SQLITE_FILENAME: "arxiv_data.db" # Name of the file after unzipping
+  SQLITE_FILENAME: "arxiv_data.db"
 
 task:
   name: Update DoltHub Database
