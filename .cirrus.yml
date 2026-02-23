@@ -54,6 +54,7 @@ task:
 
     # 5. Stop the Dolt SQL server
     - kill $DOLT_PID
+    - sleep 5
 
     # 6. Commit and Push to DoltHub
     - dolt add .
