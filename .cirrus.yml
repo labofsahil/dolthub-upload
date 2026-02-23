@@ -2,15 +2,15 @@ env:
   # You must encrypt your DoltHub token using the Cirrus CI web interface
   # https://cirrus-ci.org/guide/writing-tasks/#encrypted-variables
   DOLTHUB_TOKEN: ENCRYPTED[f54e9df42ab5dd76b364016cdb1db0eb280fda231dc3591e3a5da3330fb5a04bfa3b318cd84ddbcb6f0575e12291cd1d]
-  SQLITE_ZIP_URL: "https://www.kaggle.com/api/v1/datasets/download/krishsharma0413/2-million-songs-from-mpd-with-audio-features"
-  DOLT_REPO_NAME: "sahil/million-playlist"
-  SQLITE_FILENAME: "extracted.sqlite"
+  SQLITE_ZIP_URL: "https://www.kaggle.com/api/v1/datasets/download/justsahil/imdb-sql"
+  DOLT_REPO_NAME: "sahil/imdb"
+  SQLITE_FILENAME: "imdb.sqlite"
 
 task:
   name: Update DoltHub Database
   # Using a Python base image since sqlite3-to-mysql is a Python package
   container:
-    image: python:3.11-bullseye
+    image: python:latest
 
   install_dependencies_script:
     - apt-get update && apt-get install -y unzip sudo curl
