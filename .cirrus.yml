@@ -1,0 +1,62 @@
+env:
+  # You must encrypt your DoltHub token using the Cirrus CI web interface
+  # https://cirrus-ci.org/guide/writing-tasks/#encrypted-variables
+  DOLTHUB_TOKEN: ENCRYPTED[your_encrypted_token_here]
+  SQLITE_ZIP_URL: "https://example.com/path/to/your/database.zip"
+  DOLT_REPO_NAME: "your_username/your_repo_name"
+  SQLITE_FILENAME: "database.sqlite" # Name of the file after unzipping
+
+task:
+  name: Update DoltHub Database
+  # Using a Python base image since sqlite3-to-mysql is a Python package
+  container:
+    image: python:3.11-bullseye
+
+  install_dependencies_script:
+    - apt-get update && apt-get install -y unzip sudo curl
+    # Install Dolt using the official installation script
+    - curl -L https://github.com/dolthub/dolt/releases/latest/download/install.sh | sudo bash
+    # Install the SQLite to MySQL conversion tool
+    - pip install sqlite3-to-mysql
+
+  download_and_extract_script:
+    - wget -O data.zip $SQLITE_ZIP_URL
+    - unzip data.zip -d extracted_data/
+
+  dolt_upload_script:
+    # 1. Configure Dolt
+    - dolt config --global --set user.email "ci-bot@example.com"
+    - dolt config --global --set user.name "Cirrus CI Bot"
+    # Authenticate with DoltHub using the provided token 
+    - echo "$DOLTHUB_TOKEN" | dolt creds import
+
+    # 2. Initialize Dolt Repository
+    - mkdir dolt_workspace
+    - cd dolt_workspace
+    - dolt init
+    - dolt remote add origin $DOLT_REPO_NAME
+
+    # 3. Start Dolt SQL Server in the background 
+    - dolt sql-server --host 0.0.0.0 --port 3306 &
+    - DOLT_PID=$!
+    # Wait briefly to ensure the server starts properly
+    - sleep 5
+
+    # 4. Import SQLite data into the Dolt server
+    # This mirrors the Justfile behavior of piping the unzipped sqlite file via localhost
+    - |
+      sqlite3mysql --sqlite-file ../extracted_data/$SQLITE_FILENAME \
+          --mysql-database $(basename $PWD) \
+          --mysql-user root \
+          --mysql-password "" \
+          --mysql-host localhost \
+          --mysql-port 3306
+
+    # 5. Stop the Dolt SQL server
+    - kill $DOLT_PID
+
+    # 6. Commit and Push to DoltHub
+    - dolt add .
+    - dolt commit -m "Automated SQLite data import via Cirrus CI"
+    # Pushes to the main branch; force is used in the original repo to overwrite
+    - dolt push --force origin main
