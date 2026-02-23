@@ -11,6 +11,7 @@ task:
   # Using a Python base image since sqlite3-to-mysql is a Python package
   container:
     image: python:latest
+    use_in_memory_disk: true
     cpu: 8
     memory: 32G
 
@@ -24,6 +25,7 @@ task:
   download_and_extract_script:
     - wget -O data.zip $SQLITE_ZIP_URL
     - unzip data.zip -d extracted_data/
+    - rm data.zip
 
   dolt_upload_script:
     # 1. Configure Dolt
