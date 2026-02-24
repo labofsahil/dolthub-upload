@@ -52,18 +52,29 @@ task:
       DB_NAME=$(basename $PWD)
       
       # Query the DuckDB file for all table names and output them as a list
-      TABLES=$(duckdb ../extracted_data/$DUCKDB_FILENAME -noheader -list -c "SELECT table_name FROM information_schema.tables WHERE table_schema='main';")
+      TABLES=$(duckdb -readonly ../extracted_data/$DUCKDB_FILENAME -noheader -list -c "SELECT table_name FROM information_schema.tables WHERE table_schema='main';")
       
-      # Loop through every table found and copy it to Dolt
-      for TABLE in $TABLES; do
-        echo "Importing table: $TABLE"
-        duckdb ../extracted_data/$DUCKDB_FILENAME <<EOF
-        INSTALL mysql;
-        LOAD mysql;
-        ATTACH 'host=127.0.0.1 port=3306 user=root database=$DB_NAME' AS dolt_db (TYPE MYSQL);
-        CREATE TABLE dolt_db."$TABLE" AS SELECT * FROM "$TABLE";
-      EOF
-      done
+      # Create an executable script for individual table imports
+      cat << 'SCRIPT_EOF' > import_table.sh
+      #!/bin/bash
+      DB_NAME=$1
+      TABLE=$2
+      
+      echo "Starting import for table: $TABLE"
+      duckdb -readonly ../extracted_data/imdb.duckdb <<SQL_EOF
+      -- Prevent OOM by capping memory per thread (8 workers * 3GB = 24GB)
+      PRAGMA memory_limit='3GB'; 
+      INSTALL mysql;
+      LOAD mysql;
+      ATTACH 'host=127.0.0.1 port=3306 user=root database=$DB_NAME' AS dolt_db (TYPE MYSQL);
+      CREATE TABLE dolt_db."$TABLE" AS SELECT * FROM "$TABLE";
+      SQL_EOF
+      SCRIPT_EOF
+      
+      chmod +x import_table.sh
+      
+      # Run up to 8 jobs in parallel, passing DB_NAME and the TABLE name
+      echo "$TABLES" | xargs -I {} -P 8 ./import_table.sh $DB_NAME {}
       
     # 5. Stop the Dolt SQL server
     - kill $DOLT_PID
