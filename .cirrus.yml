@@ -50,6 +50,8 @@ task:
     # We pass a heredoc script into the DuckDB CLI
     - |
       DB_NAME=$(basename $PWD)
+
+      duckdb -c "INSTALL mysql;"
       
       # Query the DuckDB file for all table names and output them as a list
       TABLES=$(duckdb -readonly ../extracted_data/$DUCKDB_FILENAME -noheader -list -c "SELECT table_name FROM information_schema.tables WHERE table_schema='main';")
@@ -61,13 +63,21 @@ task:
       TABLE=$2
       
       echo "Starting import for table: $TABLE"
-      duckdb -readonly ../extracted_data/imdb.duckdb <<SQL_EOF
+      duckdb <<SQL_EOF
       -- Prevent OOM by capping memory per thread (8 workers * 3GB = 24GB)
       PRAGMA memory_limit='3GB'; 
-      INSTALL mysql;
+      
+      -- Load the previously installed extension
       LOAD mysql;
+      
+      -- Attach the DuckDB file in read-only mode (allows the 8 concurrent readers)
+      ATTACH '../extracted_data/imdb.duckdb' AS source_db (READ_ONLY);
+      
+      -- Attach Dolt (MySQL) in read-write mode
       ATTACH 'host=127.0.0.1 port=3306 user=root database=$DB_NAME' AS dolt_db (TYPE MYSQL);
-      CREATE TABLE dolt_db."$TABLE" AS SELECT * FROM "$TABLE";
+      
+      -- Copy the data
+      CREATE TABLE dolt_db."$TABLE" AS SELECT * FROM source_db."$TABLE";
       SQL_EOF
       SCRIPT_EOF
       
