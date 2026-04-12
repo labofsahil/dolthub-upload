@@ -7,6 +7,7 @@ env:
   SQLITE_FILENAME: "en_wiktionary_normalized_full.db"
 
 task:
+  timeout_in: 8m
   name: Update DoltHub Database
   # Using a Python base image since sqlite3-to-mysql is a Python package
   container:
